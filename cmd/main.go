@@ -7,9 +7,25 @@ import (
 	"github.com/zooyer/wol"
 )
 
-var mac = flag.String("mac", "", "mac address")
+var (
+	port = 9
+	addr string
+	macs []string
+
+	mac = flag.String("mac", "", "mac address")
+)
+
+var args struct {
+	Port   []int    `clop:"-c;--port" usage:""`
+	MAC    []string `clop:"-m;--mac" usage:""`
+	Remote string   `clop:"-r;--remote" usage:""`
+}
 
 func init() {
+	//if err := clop.Bind(&args); err != nil {
+	//	panic(err)
+	//}
+
 	flag.Parse()
 
 	if *mac == "" && len(os.Args) > 1 {
