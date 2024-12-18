@@ -38,38 +38,38 @@ func ListenWOL(port int) error {
 }
 
 // WOL wol唤醒mac主机
-func WOL(mac string, port ...int) error {
+func WOL(mac string, port ...int) (err error) {
 	packet, err := MagicPacket(mac)
 	if err != nil {
-		return err
+		return
 	}
 	port = append(port, 7, 9)
-	list := ips()
+	list := broadcastAddresses()
 	if len(list) == 0 {
 		return errors.New("not available interface")
 	}
 
 	var addr, laddr net.UDPAddr
-	addr.IP = net.ParseIP("255.255.255.255")
+	laddr.IP = net.IPv4zero
 
 	for _, p := range port {
-		addr.Port = p
 		for _, ip := range list {
-			laddr.IP = net.ParseIP(ip)
-			wol, err := net.DialUDP("udp", &laddr, &addr)
-			if err != nil {
-				return err
+			addr.IP = net.ParseIP(ip)
+			addr.Port = p
+			var conn *net.UDPConn
+			if conn, err = net.DialUDP("udp", &laddr, &addr); err != nil {
+				return
 			}
-			if _, err = io.Copy(wol, bytes.NewBuffer(packet)); err != nil {
-				return err
+			if _, err = io.Copy(conn, bytes.NewBuffer(packet)); err != nil {
+				return
 			}
-			if err = wol.Close(); err != nil {
-				return err
+			if err = conn.Close(); err != nil {
+				return
 			}
 		}
 	}
 
-	return nil
+	return
 }
 
 // MagicPacket 封装魔术包
@@ -114,4 +114,46 @@ func ips() []string {
 	}
 
 	return list
+}
+
+func broadcastAddresses() (list []string) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return
+	}
+
+	for _, iface := range interfaces {
+		// 跳过没有启用的接口
+		if iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+
+		// 获取接口的地址信息
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		// 遍历每个接口的地址
+		for _, addr := range addrs {
+			if ip, ok := addr.(*net.IPNet); ok && ip.IP.IsGlobalUnicast() && ip.IP.To4() != nil {
+				list = append(list, getBroadcastAddress(ip.IP, ip.Mask).To4().String())
+			}
+		}
+	}
+
+	return
+}
+
+// getBroadcastAddress 计算广播地址
+func getBroadcastAddress(ip net.IP, mask net.IPMask) net.IP {
+	// 网络地址: ip & mask
+	network := ip.Mask(mask)
+
+	// 广播地址: 将主机部分设置为 1
+	for i := range network {
+		network[i] |= ^mask[i]
+	}
+
+	return network
 }
