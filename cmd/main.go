@@ -4,7 +4,7 @@ import (
 	"flag"
 	"os"
 
-	"github.com/zooyer/wol"
+	"wol"
 )
 
 var (
